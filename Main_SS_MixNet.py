@@ -138,63 +138,76 @@ def SS_MixNet(img_list, mixer_dim=128, num_classes=NUM_CLASS):
     return model
 
 
-model = SS_MixNet(X_train , mixer_dim=128, num_classes=NUM_CLASS)
-model.summary()
+if __name__ == "__main__":
+
+    model = SS_MixNet(X_train , mixer_dim=128, num_classes=NUM_CLASS)
+    model.summary()
+
+    #from datetime import datetime
+    #timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-checkpoint = ModelCheckpoint(
-    f"{DATASET}_SS_MixNet.h5",
-    monitor='val_accuracy',
-    save_best_only=True,
-    save_weights_only=True,
-    verbose=1
-)
-
-# Define a callback to modify the learning rate dynamically
-lr_callback = keras.callbacks.ReduceLROnPlateau(
-    monitor='val_accuracy',
-    factor=0.5,
-    patience=10,
-    min_lr=5e-5
+    checkpoint = ModelCheckpoint(
+        f"{DATASET}_SS_MixNet.h5",
+        #f"{DATASET}_SS_MixNet_{timestamp}.h5",
+        monitor='val_accuracy',
+        save_best_only=True,
+        save_weights_only=True,
+        verbose=1
     )
-    
-history = model.fit(X_train, y_train,
-                    epochs = 100,
-                    batch_size = 64,
-                    validation_data = (X_val, y_val),
-                    callbacks=[checkpoint, lr_callback],
-                    )
 
+    # Define a callback to modify the learning rate dynamically
+    lr_callback = keras.callbacks.ReduceLROnPlateau(
+        monitor='val_accuracy',
+        factor=0.5,
+        patience=10,
+        min_lr=5e-5
+        )
         
-Y_pred_test = predict_by_batching(model, input_tensor_idx = X_test_idx, batch_size = 1000, X = data, windowSize = window_size)
-y_pred_test = np.argmax(Y_pred_test, axis=1)
+    history = model.fit(X_train, y_train,
+                        epochs = 100,
+                        batch_size = 64,
+                        validation_data = (X_val, y_val),
+                        callbacks=[checkpoint, lr_callback],
+                        )
+
+            
+    Y_pred_test = predict_by_batching(model, input_tensor_idx = X_test_idx, batch_size = 1000, X = data, windowSize = window_size)
+    y_pred_test = np.argmax(Y_pred_test, axis=1)
+        
+    kappa = cohen_kappa_score(y_test,  y_pred_test)
+    oa = accuracy_score(y_test, y_pred_test)
+    cm = confusion_matrix(y_test, y_pred_test)
+    class_acc = cm.diagonal() / cm.sum(axis=1)
+    aa = np.mean(class_acc)
+        
     
-kappa = cohen_kappa_score(y_test,  y_pred_test)
-oa = accuracy_score(y_test, y_pred_test)
-cm = confusion_matrix(y_test, y_pred_test)
-class_acc = cm.diagonal() / cm.sum(axis=1)
-aa = np.mean(class_acc)
+    print("Overall Accuracy = ", float(format((oa)*100, ".2f"))) 
+    print("Average Accuracy = ", float(format((aa)*100, ".2f")))
+    print('Kappa = ', float(format((kappa)*100, ".2f")))
     
- 
-print("Overall Accuracy = ", float(format((oa)*100, ".2f"))) 
-print("Average Accuracy = ", float(format((aa)*100, ".2f")))
-print('Kappa = ', float(format((kappa)*100, ".2f")))
- 
 
 
-model.load_weights(f"{DATASET}_SS_MixNet_{i}.h5")
+    model.load_weights(f"{DATASET}_SS_MixNet.h5")
 
-Predicted_Class_Map = get_class_map(model, data, gt, window_size)
-img_display(classes=Predicted_Class_Map, title='Predicted', class_name=class_name)
+    Predicted_Class_Map = get_class_map(model, data, gt, window_size)
+    img_display(classes=Predicted_Class_Map, title='Predicted', class_name=class_name)
 
-gt_binary = gt.copy()
-gt_binary[gt>0]=1
-img_display(classes=Predicted_Class_Map*gt_binary, title='Predicted with Mask', class_name=class_name)
+    gt_binary = gt.copy()
+    gt_binary[gt>0]=1
+    img_display(classes=Predicted_Class_Map*gt_binary, title='Predicted with Mask', class_name=class_name)
 
 
-Folder = 'Matlab_Outputs/'
-Name = f'SS_MixNet'
-sio.savemat(Folder + DATASET+'/' + Name+'.mat', {Name: Predicted_Class_Map})
+
+    
+    Folder = 'Matlab_Outputs/'
+    Name = f'SS_MixNet'
+    
+    out_dir = os.path.join(Folder, DATASET)
+    os.makedirs(out_dir, exist_ok=True)   # ✅ 沒有就建立，有就略過
+
+    sio.savemat(Folder + DATASET+'/' + Name+'.mat', {Name: Predicted_Class_Map})
+
 
 
 
